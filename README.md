@@ -270,12 +270,6 @@ tg2 + facet_wrap(~supp)
 ```
 
 # Histograms
----
-title: "Histograms"
-author: "Kayia W."
-date: "`r Sys.Date()`"
-output: html_document
----
 
 ```{r}
 set.seed(1234)
@@ -356,6 +350,77 @@ a + geom_histogram(aes(y = stat(density), color = sex),
 
 ```
 
+## Dotplots 
+
+First lets load the required packages
+
+```{r}
+
+library(ggplot2)
+
+```
+
+Lets set our theme
+
+```{r}
+
+theme_set(
+  theme_dark() +
+    theme(legend.position = "top")
+)
+
+```
+
+First lets initiate a ggplot object called TG
+
+```{r}
+
+data ("ToothGrowth")
+ToothGrowth$dose <- as.factor(ToothGrowth$dose)
+
+tg <- ggplot(ToothGrowth, aes(x=dose, y = len))
+
+```
+
+Lets create a dotplot with a summary statistic
+
+```{r}
+
+tg + geom_dotplot(binaxis = "y", stackdir = "center", fill = "lightgray") +
+  stat_summary(fun = mean, fun.args = list(mult=1))
+
+```
+
+```{r}
+
+tg + geom_boxplot(width = 0.5) + 
+  geom_dotplot(binaxis = "y", stackdir = "center", fill = "white")
+
+```
+```{r}
+
+tg + geom_violin(trim = FALSE) + 
+  geom_dotplot(binaxis = "y", stackdir = "center", fill = "#999999") +
+  stat_summary(fun = mean, fun.args = list(mult=1))
+
+```
+
+```{r}
+
+tg + geom_boxplot(width = 0.5) + 
+  geom_dotplot(aes(fill = supp), binaxis = 'y', stackdir = "center") + 
+  scale_fill_manual(values = c("indianred", "lightblue1"))
+
+```
+```{r}
+
+tg + geom_boxplot(aes(color = supp), width = 0.5, position = position_dodge(0.8)) + 
+  geom_dotplot(aes(fill = supp, color = supp), binaxis = 'y', stackdir = 'center',
+               dotsize = 0.8, position = position_dodge(0.8)) +
+  scale_fill_manual(values = c("#00AFBB", "#E7B800")) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800"))
+
+```
 
 
 
