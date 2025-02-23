@@ -1563,7 +1563,7 @@ ggplot(data = diamonds) +
 
 ```
 # Exploratory Data Analysis
-## EDA (part 1 - 5)
+## EDA (part 1 - 5; Outliers included at bottom)
 First lets load a required library 
 
 ```{r}
@@ -2253,37 +2253,944 @@ ggplot(grubbs.flag(Air_data$AH), aes(x=Air_data$AH, color = Outliers, fill = Out
 
 ```
 
+# Text Mining 
+## Text Mining (part 1 - 2)
+First we'll look at the unnest_token function
+
+Lets start by looking at an Emily Dickenson passage
+
+```{r}
+
+text <- c("Because I could not stop from Death = ",
+          "He kindly stopped for me - ",
+          "The Carriage held but just Ourselves - ",
+          "and Immortality")
+
+text
+
+```
+
+This is a typical character vector that we might want to analyze. In order to turn it into a tidytext dataset, we first need to put it into a dataframe.
+
+```{r}
+
+library(dplyr)
+
+text_df <- tibble(line = 1:4, text = text)
+
+text_df
+
+```
+Reminder: A tibble is a modern class sofa data frame within R. Its available in the dplyr and tibble packages, that has a convient print method, will not convert strongs to factors, and does not use row names. Tibbles are great for use with tidy tools.
+
+Next we will use the 'unest_tokens' function.
+
+First we have the output column name that will be created as the text is unnested into it
+
+```{r}
+
+library(tidytext)
+
+text_df %>% 
+  unnest_tokens(word, text)
+
+```
+Lets use the janeaustenr package to analyze some Jane Austen texts. There are 6 books in this package.
+
+
+```{r}
+
+library(janeaustenr)
+library(dplyr)
+library(stringr)
+
+
+original_books <- austen_books() %>% 
+  group_by(book) %>% 
+  mutate(linenumber = row_number(), 
+         chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]", 
+                                                 ignore_case = TRUE)))) %>%
+  ungroup()
+
+original_books
+
+```
 
 
 
+To work with this as a tidy dataset, we need to restructure it in the one-token-per-row format, which as we saw earlier is done with the unnest_tokens() function
+
+```{r}
+
+library(tidytext)
+tidy_books <- original_books %>%
+  unnest_tokens(word, text)
+
+tidy_books
+
+```
+
+This function uses  the tokenizers package to separate each line of text in the original dataframe into tokens.
+
+The default tokenizing is for words, but other options including characters, n-grams, sentences, lines, or paragraphs can be used.
+
+Now that the data is in a one-word-per-row format, we can manipulate it with tools like dplyr.
+
+Often in text analysis, we will want to remove stop words. Stop words are words that are NOT USEFUL for an analysis. 
+These include words like the, of, to, and, and so forth.
+
+We can remove stop words (kept in the tidytext dataset 'stop_words') with an anti_join().
+
+```{r}
+data(stop_words)
+
+tidy_books <- tidy_books %>%
+  anti_join(stop_words)
+
+```
+
+The stop words dataset in the tidytext package contains stop words from three lexicons, we can use them all together, as we have three or filter() to only use one set of stop words if thats more appropriate for your analysis.
+
+```{r}
+
+tidy_books %>%
+  count(word, sort = TRUE)
+
+```
+
+Because we've been using tidy tools, our word counts are stored in a tidy data frame. This allows us to pipe this directly into ggplot2. For example, we can create a visualization of the most common words.
+
+```{r}
+library(ggplot2)
+
+tidy_books %>%
+  count(word, sort = TRUE) %>%
+  filter(n> 600) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) +
+  geom_col() + 
+  labs(y = NULL, x = "word count")
+
+```
+
+The gutenbergr package
+
+This package provides access to the public domain works from the gutenberg project (www.gutenberg.org). This package includes tools for both downloading books and a complete dataset of project gutenberg metadata that can be used to find works of interest. We will mostly use the function gutenberg_download().
+
+Word frequencies 
+
+Lets look at some biology texts, starting with Darwin 
+
+The Voyage at the Beagle - 944
+On the origin of species by thee means of natural selection - 1228
+The expression of emotions in man and animals - 1227
+The descent of man, and selection in relation to sex - 2300
+
+We can access these works using the gutenberg_download() and the Project Gutenberg ID numbers
+
+```{r}
+
+library(gutenbergr)
+
+darwin <- gutenberg_download(c(944, 1227, 1228, 2300), mirror = "https://mirror.csclub.uwaterloo.ca/gutenberg/")
+
+```
+
+Lets break these into tokens
+
+```{r}
+
+tidy_darwin <- darwin %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words)
+
+```
+
+Lets check out what the most common darwin words are.
+
+```{r}
+
+tidy_darwin %>% 
+  count(word, sort = TRUE)
+
+```
+
+Now lets get some work from Thomas Hunt Morgan, who is credited with dicovering chromosomes. 
+
+Regeneration - 57198
+The genetic and operative evidence relating to secondary sexual characteristics - 57460
+Evolution and Adaptation - 63540
+
+```{r}
+
+morgan <- gutenberg_download(c( 57198, 57460, 63540), mirror = "https://mirror.csclub.uwaterloo.ca/gutenberg/" )
+
+```
+
+Lets tokenize THM
+
+```{r}
+
+tidy_morgan <- morgan %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words)
+
+```
+
+What are THM's most common words?
+
+```{r}
+
+tidy_morgan %>%
+  count(word, sort = TRUE)
+
+```
+
+Lastly lets look at Thomas Henry Huxley
+
+Evidence as to mans place in nature - 2931 
+On the reception of the Origin of Species - 2089
+Evolution and Ethics, and other essays - 2940
+Science and Culture, and other essays = 52344
+
+```{r}
+huxley <- gutenberg_download(c(2931, 2089, 2940, 52344), mirror = "https://mirror.csclub.uwaterloo.ca/gutenberg/")
+
+```
 
 
+```{r}
+
+tidy_huxley <- huxley %>% 
+  unnest_tokens(word, text) %>% 
+  anti_join(stop_words)
+
+```
 
 
+```{r}
+
+tidy_huxley %>%
+  count(word, sort = TRUE)
+
+```
+
+Now, lets calculate the frequency for each word for the works of Darwin, Morgan, and Huxley, by binding the frames together.
+
+```{r}
+
+library(tidyr)
+
+frequency <- bind_rows(mutate(tidy_morgan, author = "Thomas Hunt Morgan"),
+                       mutate(tidy_darwin, author = "Charles Darwin"),
+                       mutate(tidy_huxley, author = "Thomas Henry Huxley")) %>%
+  mutate(word = str_extract(word, "[a-z']+")) %>%
+  count(author, word) %>%
+  group_by(author) %>%
+  mutate(proportion = n/ sum(n)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = author, values_from = proportion) %>%
+  pivot_longer('Thomas Hunt Morgan': 'Charles Darwin', names_to = "author", values_to = "proportion")
+
+frequency
+
+```
+
+Now we need to change the table so that each author has its own row
+
+```{r}
+
+frequency2 <- pivot_wider(frequency, names_from = author, values_from = proportion)
+
+frequency2
+
+```
+
+Now lets plot
+
+```{r}
+
+library(scales)
+library(ggplot2) # Make sure to load ggplot2
+
+ggplot(frequency2, aes(x = `Charles Darwin`, y = `Thomas Hunt Morgan`, 
+                       color = abs(`Charles Darwin` - `Thomas Hunt Morgan`))) + 
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0,0.001), 
+                       low = "darkslategray4", high = "gray75") +
+  theme(legend.position = "none") +
+  labs(y = "Thomas Hunt Morgan", x = "Charles Darwin")
+
+```
+  
+                       
+```{r}
+
+ggplot(frequency2, aes(x = `Charles Darwin`, y = `Thomas Henry Huxley`), color = abs(`Charles Darwin` - `Thomas Henry Huxley`)) + 
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0,0.001), 
+                       low = "darkslategray4", high = "gray75") +
+  theme(legend.position = "none") +
+  labs(y = "Thomas Henry Huxley", x = "Charles Darwin")
+
+```
+
+```{r}
+
+ggplot(frequency2, aes(x = `Thomas Hunt Morgan`, y = `Thomas Henry Huxley`), color = abs(`Thomas Hunt Morgan` - `Thomas Henry Huxley`)) + 
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0,0.001), 
+                       low = "darkslategray4", high = "gray75") +
+  theme(legend.position = "none") +
+  labs(y = "Thomas Henry Huxley", x = "Thomas Hunt Morgan")
+
+```
+
+## Sentiment Analysis (part 1 - 3)
+The Sentiments datasets:
+
+There are a variety of methods and dictionaries that exist for evaluating the opinion or emotion of the text.
+
+AFFIN
+bing
+nrc
+
+bing categorizes word in a binary fashion into positive or negative
+nrc categorizes into positive, negative, anger, anticipation, disgust, fear, joy, sadness, suprise and trust.
+AFFIN assigns a score between -5 and 5, with negative indicating negative sentiment, and 5 positive.
+
+The function get_setiments() allows us to get the specific sentiments lexicon with the measures for each one.
+
+```{r}
+install.packages("textdata")
+```
 
 
+```{r}
+library(tidytext)
+library(textdata)
+
+afinn <- get_sentiments("afinn")
+
+afinn
+```
+Lets look at bing
+
+```{r}
+
+bing <- get_sentiments("bing")
+
+bing
+
+```
+And lastly nrc
+
+```{r}
+
+nrc <- get_sentiments("nrc")
+
+nrc
+
+```
+These libraries were created either using crowdourcing or cloud computing/ai like Amazon Mechanical Turk, or by labor of one of the authors, and then validated with crowdsourcing.
+
+Lets look at the words with a joy score from NRC
 
 
+```{r}
+library(gutenbergr)
+library(dplyr)
+library(stringr)
+
+darwin <- gutenberg_download(c(944, 1227, 1228, 2300), mirror = "https://mirror.csclub.uwaterloo.ca/gutenberg/")
+
+tidy_books <- darwin %>%
+  group_by(gutenberg_id) %>%
+  mutate(linenumber = row_number(), chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]", ignore_case = TRUE)))) %>%
+  ungroup() %>%
+  unnest_tokens(word, text)
+
+tidy_books
+```
+Lets add the book name instead if GID
+
+```{r}
+colnames(tidy_books)[1] <- "book"
+
+tidy_books$book[tidy_books$book == 944] <- "The Voyage of the Beagle"
+tidy_books$book[tidy_books$book == 1227] <- "The Expression of the Emotions in Man and Animals"
+tidy_books$book[tidy_books$book == 1228] <- "On the Origin of Species By Means of Natural Selection"
+tidy_books$book[tidy_books$book == 2300] <- "The Descent of Man, and Selection in Relation to Sex"
+
+tidy_books
+
+```
+Now that we have a tidy format with one word per row, we are ready for sentiment analysis. First lets use NRC.
+
+```{r}
+nrc_joy <- get_sentiments("nrc") %>%
+  filter(sentiment == "joy")
+
+tidy_books %>% 
+  filter(book == "The Voyage of the Beagle") %>%
+  inner_join(nrc_joy) %>%
+  count(word, sort = TRUE)
+
+```
+
+We can also examine how sentiment changes throughout a work.
+
+```{r}
+
+library(tidyr)
+
+Charles_Darwin_sentiment <- tidy_books %>% 
+  inner_join(get_sentiments("bing")) %>%
+  count(book, index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+```
+Now lets plot it
+
+```{r}
+
+library(ggplot2)
+
+ggplot(Charles_Darwin_sentiment, aes(index, sentiment, fill = book)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~book, ncol = 2, scales = "free_x")
+
+```
+
+Lets compare the three sentiment dictions
+
+There are several options for sentiment lexicons, you might want some more info on which is appropriate for your purpose. Here we will use all three of our dictionariesand examine how the sentiment changes across the arc of TVOTB.
+
+```{r}
+library(tidyr)
+
+voyage <- tidy_books %>%
+  filter(book == "The Voyage of the Beagle")
+
+voyage
+
+```
+Lets again use interger division ('%/%') to define larger sections of the text that span multiple lines, and we can use the same pattern with 'count()', 'pivot_wider()', and 'mutate', to find the net sentiment in each of these sections of text. 
+
+```{r}
+
+affin <- voyage %>% 
+  inner_join(get_sentiments("afinn")) %>%
+  group_by(index = linenumber %/% 80) %>%
+  summarise(sentiment = sum(value)) %>%
+  mutate(method = "AFINN")
+
+bing_and_nrc <- bind_rows(
+  voyage %>%
+    inner_join(get_sentiments("bing")) %>%
+    mutate(method = "Bing et al."),
+  voyage %>% 
+    inner_join(get_sentiments("nrc") %>%
+                 filter(sentiment %in% c("positive", "negative"))
+              ) %>%
+      mutate(method = "NRC")) %>%
+    count(method, index = linenumber %/% 80, sentiment) %>%
+    pivot_wider(names_from = sentiment, 
+                values_from = n,
+                values_fill = 0) %>%
+    mutate(sentiment = positive - negative)
+    
+```
+We can now estimate the net sentiment (positive - negative) in each chunk of thenovel text for each lexion (dictionary). 
+
+Lets bind them all together and visualize with ggplot
+
+```{r}
+
+bind_rows(affin, bing_and_nrc) %>%
+  ggplot(aes(index, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~method, ncol = 1, scales = "free_y")
+  
+```
+
+Lets look at the counts based on each dictionary
+
+```{r}
+get_sentiments("nrc") %>%
+  filter(sentiment %in% c("positive", "negative")) %>%
+  count(sentiment)
+
+```
+```{r}
+
+get_sentiments("bing") %>% 
+  count(sentiment)
+
+```
+
+```{r}
+
+bing_word_counts <- tidy_books %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts
+
+```
+
+This can be shown visually, and we can pipe straight into ggplot2
+ 
+```{r}
+bing_word_counts %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scale = "free_y") +
+  labs(x = "Contribution to Sentiment", y = NULL)
+
+```
+Lets spot an anomoly in the dataset.
+
+```{r}
+custom_stop_words <- bind_rows(tibble(word = c("wild", "dark", "great", "like"), lexicon = c("custom")), stop_words)
+
+custom_stop_words
+
+```
+Word Clouds!
+
+We can see that tidy text mining and sentiment analysis works well with ggplot2, but having our data in tidy formate leads to other nice graphing techniques
+
+Lets use the wordcloud package!!
+
+```{r}
+library(wordcloud)
+
+tidy_books %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+  
+```
+Lets also look at comparison.cloud(), which may require turning the dataframe into a matrix.
+
+We can change to matrix using the acast() function.
+
+```{r}
+library(reshape2)
+
+tidy_books %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("gray20", "gray80"), max.words = 100)
+
+```
+Looking at units beyond words
+
+Lots of useful work can be done by tokenizing not the word level, but sometimes its nice to look at different units of text. For example, we can look beyond just unigrams.
+
+Ex I am not having a good day.
+
+```{r}
+
+bingnegative <- get_sentiments("bing") %>%
+  filter(sentiment == "negative")
+
+wordcounts <- tidy_books %>%
+  group_by(book, chapter) %>%
+  summarize(words = n())
+
+tidy_books %>%
+  semi_join(bingnegative) %>%
+  group_by(book, chapter) %>%
+  summarize(negativewords = n()) %>%
+  left_join(wordcounts, by = c("book", "chapter")) %>%
+  mutate(ratio = negativewords/words) %>%
+  filter(chapter !=0) %>%
+  slice_max(ratio, n = 1) %>%
+  ungroup()
+
+```
+
+## N-grams (part 1 - 3)
+So far we've only looked at single words, but many interesting (more accurate) analyses are based on the relationship between words
+
+Lets look at some methods of tidytext for calculating and visualizing word relationships.
 
 
+```{r}
+library(dplyr)
+library(tidytext)
+
+darwin_books <- gutenberg_download(c(944, 1227, 1228, 2300), mirror = "https://mirror.csclub.uwaterloo.ca/gutenberg/")
+
+colnames(darwin_books)[1] <- "book"
+
+darwin_books$book[darwin_books$book == 944] <- "The Voyage of the Beagle"
+darwin_books$book[darwin_books$book == 1227] <- "The Expression of the Emotions in Man and Animals"
+darwin_books$book[darwin_books$book == 1228] <- "On the Origin of Species By Means of Natural Selection"
+darwin_books$book[darwin_books$book == 2300] <- "The Descent of Man, and Selection in Relation to Sex"
+
+darwin_bigrams <- darwin_books %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+darwin_bigrams
+
+```
+This data is still in tidytext format, and isn't structured as one-token-per-row. Each token is a bigram.
+
+Counting and filtering n-gram
+
+```{r}
+darwin_bigrams %>%
+  count(bigram, sort = TRUE)
+
+```
+Most of the common bigrams are stop-words. This can be good time to use tidyr's separate command which splits a column into multiple based on a delimiter. This will let us make a column for word one and word two. 
+
+```{r}
+library(tidyr)
+
+bigrams_separated <- darwin_bigrams %>%
+  separate(bigram, c("word1", "word2"), sep = " ")
+
+bigrams_filtered <- bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+bigrams_filtered
+
+```
+
+New bigram counts
+
+```{r}
+bigram_counts <- bigrams_filtered %>%
+  unite(bigram, word1, word2, sep = " ")
+
+bigram_counts
+
+```
+We may also be interested in trigrams, which are three word combos
+
+```{r}
+
+trigrams <- darwin_books %>%
+  unnest_tokens(trigram, text, token = "ngrams", n = 3) %>%
+  separate(trigram, c("word1", "word2", "word3"), sep = " ") %>%
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word,
+         !word3 %in% stop_words$word) %>%
+  count(word1, word2, word3, sort = TRUE)
+
+trigrams
+
+```
+
+Lets analyze some bigrams
+
+```{r}
+
+bigrams_filtered %>%
+  filter(word2 == "selection") %>%
+  count(book, word1, sort = TRUE)
+
+```
+Lets again look at tf-idf across bigrams across Darwin works.
+
+```{r}
+
+bigram_tf_idf <- bigram_counts %>%
+  count(book, bigram) %>%
+  bind_tf_idf(bigram, book, n) %>%
+  arrange(desc(tf_idf))
+
+bigram_tf_idf
+
+```
+```{r}
+
+bigram_tf_idf %>%
+  arrange(desc(tf_idf)) %>%
+  group_by(book) %>%
+  slice_max(tf_idf, n = 10) %>%
+  ungroup() %>%
+  mutate(bigram = reorder(bigram, tf_idf)) %>%
+  ggplot(aes(tf_idf, bigram, fill = book)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~book, ncol = 2, scales = "free") +
+  labs(x = "tf-idf of bigrams", y = NULL)
+
+```
+
+Using bigrams to provide context in sentiment analysis
+
+```{r}
+
+bigrams_separated %>%
+  filter(word1 == "not") %>%
+  count(word1, word2, sort = TRUE)
+
+```
+By doing sentiment analysis on bigrams, we can examine how often sentiment-associated words are preceded by a modifier like "not" or other negating words.
 
 
+```{r}
 
+AFINN <- get_sentiments("afinn")
 
+AFINN
 
+```
+We can examine the most frequent words that were preceded by "not", and associate with sentiments.
 
+```{r}
 
+not_words <- bigrams_separated %>%
+  filter(word1 == "not") %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word2, value, sort = TRUE)
 
+not_words
 
+```
+Lets visualize 
 
+```{r}
 
+library(ggplot2)
 
+not_words %>%
+  mutate(contribution = n * value) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  mutate(word2 = reorder(word2, contribution)) %>%
+  ggplot(aes(n * value, word2, fill = n * value > 0 )) +
+  geom_col(show.legend = FALSE) +
+  labs(x = "Sentiment value * number or occurences", y = "words preceded by \"not\"")
 
+```
+```{r}
 
+negation_words <- c("not", "no", "never", "non", "without")
 
+negated_words <- bigrams_separated %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word1, word2, value, sort = TRUE)
 
+negated_words
 
+```
+Lets visualize the negation words
 
+```{r}
 
+negated_words %>%
+  mutate(contribution = n * value,
+         word2= reorder(paste(word2, word1, sep = "_"), contribution)) %>%
+  group_by(word1) %>%
+  slice_max(abs(contribution), n = 12, with_ties = FALSE) %>%
+  ggplot(aes(word2, contribution, fill = n * value > 0)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ word1, scales = "free") +
+  scale_x_discrete(labels = function(x) gsub("_.+$", "", x)) +
+  xlab("Words preceded by negation term") +
+  ylab("Sentiment value * # of occurences") +
+  coord_flip()
 
+```
 
+Visualize a network of bigrams with ggraph
+
+```{r}
+
+library(igraph)
+
+bigram_counts <- bigrams_filtered %>%
+  count(word1, word2, sort = TRUE)
+
+bigram_graph <- bigram_counts %>%
+  filter(n > 20) %>%
+  graph_from_data_frame()
+
+bigram_graph
+
+```
+```{r}
+
+library(ggraph)
+set.seed(1234)
+
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
+
+```
+
+We can also add directionality to this network
+
+```{r}
+
+set.seed(1234)
+
+a <- grid::arrow(type = "closed", length = unit(0.15, "inches"))
+
+ggraph(bigram_graph, layout = "fr") + 
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE, arrow = a, end_cap = circle(0.7, 'inches')) + 
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label=name), vjust = 1, hjust = 1) +
+  theme_void()
+
+```
+
+## Word Frequencies
+A central question in text mining is how to quantify what a document is about. We can do this but looking at words that make up the document, and measuring term frequency.
+
+There are a lot of words that may not be important, these are the stop words.
+
+One way to remedy this is to look at inverse document frequency words, which decreases the weight for commonly used words and increases the weight for words that are not used very much.
+
+Term frequency in Darwins works
+
+```{r}
+
+library(dplyr)
+library(tidytext)
+
+book_words <- gutenberg_download(c(944, 1227, 1228, 2300), mirror = "https://mirror.csclub.uwaterloo.ca/gutenberg/")
+
+colnames(book_words)[1] <- "book"
+
+book_words$book[book_words$book == 944] <- "The Voyage of the Beagle"
+book_words$book[book_words$book == 1227] <- "The Expression of the Emotions in Man and Animals"
+book_words$book[book_words$book == 1228] <- "On the Origin of Species By Means of Natural Selection"
+book_words$book[book_words$book == 2300] <- "The Descent of Man, and Selection in Relation to Sex"
+
+```
+
+Now lets disect
+
+```{r}
+book_words <- book_words %>%
+  unnest_tokens(word, text) %>%
+  count(book, word, sort = TRUE)
+
+book_words
+
+```
+```{r}
+
+book_words$n <- as.numeric(book_words$n)
+
+total_words <- book_words %>%
+  group_by(book) %>%
+  summarize(total = sum(n))
+
+book_words
+
+```
+```{r}
+
+book_words <- left_join(book_words, total_words)
+
+book_words
+
+```
+
+You can see that the usual suspects are the most common words, but don't tell us anything about what the books topic is.
+
+```{r}
+
+library(ggplot2)
+
+ggplot(book_words, aes(n/total, fill = book)) +
+  geom_histogram(show.legend = FALSE) +
+  xlim(NA, 0.0009) + 
+  facet_wrap(~book, ncol = 2, scales = "free_y")
+  
+```
+
+Zipf's Law 
+
+The frequency that a words appears is inversely proportional to its rank when predicting a topic.
+
+Lets apply Zipf's law to Darwin's work
+
+```{r}
+
+freq_by_rank <- book_words %>%
+  group_by(book) %>%
+  mutate(rank = row_number(),
+         `term frequency` = n/total) %>%
+  ungroup()
+
+freq_by_rank
+
+```
+```{r}
+
+freq_by_rank %>%
+  ggplot(aes(rank, `term frequency`, color = book)) + 
+  geom_line(size = 1.1, alpha = 0.8, show.legend = FALSE) +
+  scale_x_log10() +
+  scale_y_log10()
+
+```
+Lets us TF - IDF to find words for each document by decreasing the weight for commonly used words and increasing the weight for words that are not used very much in a collection of documents.
+
+```{r}
+
+book_tf_idf <- book_words %>%
+  bind_tf_idf(word, book, n)
+
+book_tf_idf
+
+```
+Lets look at terms with high tf-idf in Darwin's works
+
+```{r}
+
+book_tf_idf %>%
+  select(-total) %>%
+  arrange(desc(tf_idf))
+
+```
+Lets look at a visualization for these high tf-idf words
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(forcats)
+
+book_tf_idf %>%
+  group_by(book) %>%
+  slice_max(tf_idf, n = 15) %>%
+  ungroup() %>% 
+  ggplot(aes(tf_idf, fct_reorder(word, tf_idf), fill = book)) + 
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~book, ncol = 2, scales = "free") +
+  labs(x = "tf-idf", y = NULL)
+
+```
